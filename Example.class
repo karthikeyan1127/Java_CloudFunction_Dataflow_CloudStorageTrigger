@@ -1,0 +1,65 @@
+package com.example;
+
+import com.example.Example.GCSEvent;
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.dataflow.Dataflow;
+import com.google.api.services.dataflow.model.LaunchTemplateParameters;
+import com.google.api.services.dataflow.model.RuntimeEnvironment;
+import com.google.cloud.functions.BackgroundFunction;
+import com.google.cloud.functions.Context;
+import org.slf4j.LoggerFactory;
+
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Logger;
+
+public class Example implements BackgroundFunction<GCSEvent> {
+  private static final Logger logger = Logger.getLogger(Example.class.getName());
+
+  @Override
+  public void accept(GCSEvent event, Context context) {
+   org.slf4j.Logger Log = LoggerFactory.getLogger(this.getClass());
+    try {
+      HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+      JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
+      GoogleCredential credential = GoogleCredential.getApplicationDefault(httpTransport, jsonFactory);
+
+      Log.info("!");
+      if (credential.createScopedRequired()) {
+        credential = credential.createScoped(Collections.singletonList("https://www.googleapis.com/auth/cloud-platform"));
+      }
+      Dataflow dataflowService = new Dataflow.Builder(httpTransport, jsonFactory, credential)
+              .setApplicationName("Google Cloud Platform Sample")
+              .build();
+      String projectId = "tidal-pathway-285009";
+
+      RuntimeEnvironment runtimeEnvironment = new RuntimeEnvironment();
+      runtimeEnvironment.setBypassTempDirValidation(false);
+      runtimeEnvironment.setTempLocation("gs://cloud-dataflow-pipeline-bucket-karthik/tmp/");
+
+      LaunchTemplateParameters launchTemplateParameters = new LaunchTemplateParameters();
+      launchTemplateParameters.setEnvironment(runtimeEnvironment);
+      launchTemplateParameters.setJobName("Trigger" + (new Date()).getTime());
+      Map<String, String> params = new HashMap<String, String>();
+      params.put("inputFile", "gs://bucket12345678jj/*.txt");
+      launchTemplateParameters.setParameters(params);
+      Dataflow.Projects.Templates.Launch launch = dataflowService.projects().templates().launch(projectId, launchTemplateParameters);
+      launch.setGcsPath("gs://cloud-dataflow-pipeline-bucket-karthik/templates/dataflow-custom-redis-template");
+      launch.execute();
+    }catch(Exception e){
+      System.out.println(e.toString());
+    }
+  }
+
+  public static class GCSEvent {
+    String bucket;
+    String name;
+    String metageneration;
+  }
+}
